@@ -1,0 +1,162 @@
+/*Add32*/
+module add32(a,b,out); 
+
+input [31:0]a,b; 
+output [34:0]out; 
+
+assign out=a+b; 
+
+endmodule
+
+
+/*Dff16*/
+module dff16(reset_n,clk,d_in,q_out); 
+
+input reset_n,clk; 
+input [15:0]d_in; 
+output reg [15:0]q_out;  
+
+always @(posedge clk or negedge reset_n) 
+begin 
+if(!reset_n) 
+	q_out<=16'h0; 
+else  
+	q_out<=d_in; 
+end 
+
+endmodule
+
+
+/*Mult16*/
+module mult16(outcome,a,b); 
+
+input [15:0]a,b;  
+output wire [31:0]outcome; 
+
+wire [30:0] temp0; 
+wire [29:0] temp1; 
+wire [28:0] temp2; 
+wire [27:0] temp3; 
+wire [26:0] temp4;  
+wire [25:0] temp5; 
+wire [24:0] temp6; 
+wire [23:0] temp7; 
+wire [22:0] temp8; 
+wire [21:0] temp9; 
+wire [20:0] temp10; 
+wire [19:0] temp11; 
+wire [18:0] temp12; 
+wire [17:0] temp13; 
+wire [16:0] temp14; 
+wire [15:0] temp15; 
+
+function [15:0] mult16x1; 
+input [15:0] operand; 
+input sel; 
+begin  
+   mult16x1=(sel)?(operand):15'b0;
+end
+endfunction 
+
+assign temp15=mult16x1(a,b[0]); 
+assign temp14=((mult16x1(a,b[1]))<<1); 
+assign temp13=((mult16x1(a,b[2]))<<2); 
+assign temp12=((mult16x1(a,b[3]))<<3); 
+assign temp11=((mult16x1(a,b[4]))<<4); 
+assign temp10=((mult16x1(a,b[5]))<<5); 
+assign temp9=((mult16x1(a,b[6]))<<6); 
+assign temp8=((mult16x1(a,b[7]))<<7); 
+assign temp7=((mult16x1(a,b[8]))<<8); 
+assign temp6=((mult16x1(a,b[9]))<<9); 
+assign temp5=((mult16x1(a,b[10]))<<10); 
+assign temp4=((mult16x1(a,b[11]))<<11); 
+assign temp3=((mult16x1(a,b[12]))<<12); 
+assign temp2=((mult16x1(a,b[13]))<<13); 
+assign temp1=((mult16x1(a,b[14]))<<14); 
+assign temp0=((mult16x1(a,b[15]))<<15); 
+
+assign outcome=(temp0+temp1+temp2+temp3+temp4+temp5+temp6+temp7+temp8+temp9+temp10+temp11+temp12+temp13+temp14+temp15)/256; 
+
+endmodule
+
+
+/*Top*/
+module Fir(reset_n,clk,x_in,y_out);
+
+input reset_n,clk;
+input [15:0]x_in;
+output [23:0]y_out;
+
+wire [15:0]q1,q2,q3,q4;  
+wire [31:0]mout0,mout1,mout2,mout3,mout4; 
+wire [34:0]aout1,aout2,aout3,aout4; 
+
+dff16 	D1(.reset_n(reset_n),.clk(clk),.d_in(x_in),.q_out(q1)), 
+	D2(.reset_n(reset_n),.clk(clk),.d_in(q1),.q_out(q2)), 
+	D3(.reset_n(reset_n),.clk(clk),.d_in(q2),.q_out(q3)),
+	D4(.reset_n(reset_n),.clk(clk),.d_in(q3),.q_out(q4));	
+
+mult16 	m0(.outcome(mout0),.a(x_in),.b(16'h0040)), 
+	m1(.outcome(mout1),.a(q1),.b(16'h00e0)), 
+	m2(.outcome(mout2),.a(q2),.b(16'h0100)), 
+	m3(.outcome(mout3),.a(q3),.b(16'h00e0)),
+	m4(.outcome(mout4),.a(q4),.b(16'h0040)); 
+
+add32 	a1(.a(mout0),.b(mout1),.out(aout1)),  
+      	a2(.a(aout1),.b(mout2),.out(aout2)), 
+      	a3(.a(aout2),.b(mout3),.out(aout3)),
+	a4(.a(aout3),.b(mout4),.out(aout4));
+
+assign y_out=aout4[23:0];
+
+endmodule
+
+
+/*FirSim*/
+`timescale 1ns/1ns  
+`define clock 50 
+
+module FirSim; 
+
+reg clk,reset_n; 
+reg [15:0]x_in;  
+reg [15:0]data_mem[0:15]; 
+integer i; 
+wire [23:0]y_out; 
+
+always #`clock clk=~clk;
+initial 
+begin 
+	clk=0; 
+	reset_n=1; 
+	#20 reset_n=0; 
+	#10 reset_n=1;  
+end
+
+initial  
+begin   
+	$readmemh("tir.txt",data_mem); 
+end
+ 
+always @(posedge clk or negedge reset_n) 
+begin  
+if(!reset_n) 
+	begin 
+	x_in<=15'b0;
+	i<=0; 
+	end  
+else if(i<=13) 
+	begin 
+	x_in<=data_mem[i];  
+	i<=i+1; 
+	end  
+else 
+	begin  
+	x_in<=data_mem[i]; 
+	i<=0; 
+	end  
+end  
+
+Fir fir(.reset_n(reset_n),.clk(clk),.x_in(x_in),.y_out(y_out));
+
+endmodule
